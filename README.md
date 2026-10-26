@@ -1,2 +1,7 @@
-# mipt-tpos-tasks
-Учебные задачи МФТИ по курсу Технологии Программирования и Операционные Системы: Linux &amp; Tmux, Docker, Ansible, CI/CD, Kubernetes
+# 
+Учебные задачи 
+# 🎓 mipt-tpos-tasks
+
+> **Учебные задачи МФТИ по курсу "Технологии Программирования и Операционные Системы": Linux & Tmux, Docker, Ansible, CI/CD, Kubernetes
+**  
+> ФПМИ МФТИ, 2026 | Специальность: "Разработчик BigData"
