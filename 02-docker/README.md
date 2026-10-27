@@ -1,251 +1,120 @@
 # 🐳 ДЗ #02: Docker — Контейнеризация веб-приложения с БД
 
-## 📋 Условие задачи
+## 💡 Основная идея
+Необходимо создать два образа и написать docker-compose файл, с помощью которых будут развернуты три связанных сервиса.
 
-Необходимо создать **два образа** и написать **docker-compose файл**, с помощью которых будут развернуты **три связанных сервиса**: база данных MariaDB, скрипт заполнения БД и веб-приложение. Все сервисы должны находиться в одной **user-defined bridge** сети.
+## Подробное описание
+С помощью Docker Compose и Dockerfile необходимо создать 3 сервиса.
+Все сервисы должны находиться в одной docker-сети типа user-defined bridge (не дефолтной!).
 
-## 🛠️ Стек технологий
+В сервисе-1 нужно использовать готовый образ, все сервисы должны называться так, как указано в графе Название сервиса.
 
-- **Docker** (контейнеризация)
-- **Docker Compose** (оркестрация многоконтейнерных приложений)
-- **MariaDB** (реляционная СУБД)
-- **Python 3.x** (скрипты заполнения БД и веб-сервер)
-- **Flask** (веб-фреймворк)
-- **Bash** (health checks, ожидание готовности сервисов)
-- **User-defined bridge network** (изоляция сервисов)
+### 🔹 Сервис-1. База данных
+- Образ: mariadb
+- Название сервиса: db
+- Название базы данные: ServiceDB
+- Название таблицы: data
 
----
+В БД будут храниться данные для веб-приложения Сервиса-3.
+Данные представляют собой два столбца:
+- name (строковый)
+- age (целочисленный)
 
-### Сервисы
+### 🔹 Сервис-2. Скрипт для заполнения БД
+- Образ: самодельный
+- Название сервиса: filler
 
-| Сервис | Образ | Назначение | Порт |
-|---|---|---|---|
-| **db** | `mariadb:latest` | Хранение данных (таблица `data`) | 3306 (внутри сети) |
-| **filler** | Custom (Dockerfile) | Заполнение БД из `data.csv` | — (oneshot) |
-| **web** | Custom (Dockerfile) | HTTP API для доступа к данным | 8000:8000 |
+Сервис-2 дожидается, пока Сервис-1 запущен и готов принимать подключения, затем соединяется с ним по сети и заполняет БД набором данных.
 
----
+**Примечания**
+- Скрипт можно написать на любом языке — рекомендуется Python или Bash.
+- Необходимо написать Dockerfile, с помощью которого можно собрать образ для контейнера Сервиса-2.
+- Для проверки готовности Сервиса-1 рекомендуем использовать HealthCheck
 
-## 💡 Архитектура решения
-```
-┌─────────────────────────────────────────────────────────────┐
-│                   Docker Network: app-net                    │
-│                     (bridge, user-defined)                   │
-─────────────────────────────────────────────────────────────┤
-│                                                              │
-│  ┌──────────────┐      ┌──────────────┐      ┌──────────┐  │
-│  │              │      │              │      │          │  │
-│  │     db       │◄─────│   filler     │      │   web    │  │
-│  │  (MariaDB)   │      │   (Python)   │      │  (Flask) │  │
-│  │   Port:3306  │      │   (oneshot)  │      │ Port:8000│  │
-│  │              │      │              │      │          │  │
-│  └──────────────┘      └──────────────┘      └──────────┘  │
-│         ▲                       │                  │        │
-│         │                       │                  │        │
-│         └───────────────────────┴──────────────────┘        │
-│                                                              │
-└─────────────────────────────────────────────────────────────┘
-        ▲
-        │
-   Host:8000
-```
+**Требования**
+- Набор данных представлен CSV-файлом data.csv с двумя колонками (name, age) и заголовком. Вы его создаёте сами
+- Сервис-2 стартует после Сервиса-1, когда тот готов принимать запросы.
+- Сервис-2 останавливается после заполнения БД.
 
-### 🔹 Сервис 1: База данных (MariaDB)
+### 🔹 Сервис-3. Управляющее приложение
+- Образ: самодельный
+- Название сервиса: web
 
-**Конфигурация:**
-- Образ: `mariadb:latest`
-- Название сервиса: `db`
-- База данных: `ServiceDB`
-- Таблица: `data` (колонки: `name` VARCHAR, `age` INT)
+Контейнер с веб-сервером, который может отдавать данные из Сервиса-1 по http-запросу.
 
----
+**Примечания**
+- Можете писать веб-сервер на любом языке и фреймворке, советуем Python и Flask.
+- Нужно написать Dockerfile, с помощью которого можно собрать образ для контейнера Сервиса-3
 
-### 🔹 Сервис 2: Скрипт заполнения БД (Filler)
+**Требования**
+- Веб-сервер должен запускаться после Сервиса-1 и Сервиса-2
+- Веб-сервис соединяется с контейнером БД по сети, делает запрос, получает ответ и отдает данные в http ответе
+- Веб-сервер умеет принимать следующие http-запросы:
+- Веб-сервер должен запускаться на порту 8000
+- Контейнер с веб-сервером должен иметь проброшенный порт 8000:8000
 
-**Назначение:**
-- Дождаться готовности MariaDB (через healthcheck)
-- Подключиться к БД `ServiceDB`
-- Создать таблицу `data` (если не существует)
-- Загрузить данные из `data.csv`
-
-
-
----
-
-### 🔹 Сервис 3: Веб-приложение (Flask)
-
-**Назначение:**
-- HTTP API для доступа к данным из БД
-- Запускается на порту 8000
-- Подключается к MariaDB через внутреннюю сеть
-
----
-
-## 🚀 Запуск и проверка
-
-### 1. Сборка и запуск
+## 🧪 Формат проверки
+Проверяющий будет помещать рядом с вашим docker-compose.yaml собственный файл data.csv, собирать образы и запускать сервисы командой:
 
 ```bash
 docker compose up -d --build
 ```
 
-**Что происходит:**
-1. Docker Compose создаёт сеть `app-net` (user-defined bridge)
-2. Запускается `db` (MariaDB), начинается healthcheck
-3. После готовности БД запускается `filler`
-4. После успешного завершения `filler` запускается `web`
+После этого он:
+- проверит логи контейнеров
+- выполнит HTTP-запросы
 
-### 2. Проверка статуса
+В docker-compose.yaml должно быть прописано, что сервисы filler и web собираются при вызове команды проверки.
 
-```bash
-docker compose ps
-```
-
-Ожидаемый вывод:
-```
-NAME      IMAGE            COMMAND                  STATUS
-db        mariadb:latest   "docker-entrypoint.s…"   Up (healthy)
-filler    filler:latest    "python filler.py"       Exited (0)
-web       web:latest       "python app.py"          Up
-```
-
-### 3. Проверка логов
+## 📕 Кэш docker registry
+Важное уточнение. Для того, чтобы при тестировании задания система тестирования не упиралась в лимиты работы docker-registry, мы используем локальный кэшируемый registry registry-cache.atp-fivt.org. Для автоматического кэширования образов в dind контейнер из этого registry запускается такой код перед запуском тестов. Пожалуйста, учитывайте его при реализации вашего проекта (без лишних Dockerfile)
 
 ```bash
-# Логи всех сервисов
-docker compose logs
+# image pre-pull
+if [ -f "docker-compose.yaml" ]; then
+  DC_FILE="docker-compose.yaml"
+else
+  if [ -f "docker-compose.yml" ]; then
+    DC_FILE="docker-compose.yml"
+  else
+    FAIL "Файл docker-compose.yaml(.yml) не найден в корне проекта"
+    exit 1
+  fi
+fi
 
-# Логи конкретного сервиса
-docker compose logs filler
-docker compose logs web
+grep "image:" "${DC_FILE}" | grep -oE "[^ ]*" | tail -n1 > _images.txt || :
+grep "dockerfile:" "${DC_FILE}" | grep -oE "[^ ]*" | tail -n1 > _dockerfiles_list.txt || :
+find . -type f -name "Dockerfile" > _dockerfiles_list.txt
+
+while read dockerfile; do
+  grep "FROM" "${dockerfile}" | grep -oE "[^ ]*" | grep -v -e "FROM" -e "AS" -e -- | head -n1 >> _images.txt
+done < _dockerfiles_list.txt
+LOG "found images:"
+cat _images.txt
+
+while read image; do
+  docker image pull registry-cache.atp-fivt.org/${image} || :
+done < _images.txt
 ```
 
-### 4. HTTP-запросы к веб-серверу
-
-```bash
-# Главная страница
-curl http://localhost:8000/
-
-# Все записи
-curl http://localhost:8000/all
-
-# Записи по имени
-curl http://localhost:8000/name/Alice
-```
-
-**Пример ответа `/all`:**
-```json
-{
-  "count": 5,
-  "data": [
-    {"name": "Alice", "age": 25},
-    {"name": "Bob", "age": 30},
-    {"name": "Charlie", "age": 35}
-  ]
-}
-```
-
-### 5. Проверка базы данных
-
-```bash
-# Подключение к MariaDB
-docker exec -it db mysql -u appuser -p ServiceDB
-
-# В MySQL:
-mysql> SELECT * FROM data LIMIT 5;
-+---------+------+
-| name    | age  |
-+---------+------+
-| Alice   |   25 |
-| Bob     |   30 |
-+---------+------+
-```
-
-### 6. Остановка
-
-```bash
-# Остановка всех сервисов
-docker compose down
-
-# Остановка с удалением томов (БД)
-docker compose down -v
-```
-
----
-
-**Общие требования:**
-- Все сервисы в одной user-defined bridge сети
-- `filler` запускается после готовности `db` (healthcheck)
-- `web` запускается после успешного завершения `filler`
-- Порт 8000 проброшен на хост
-- Система работает и отдаёт данные
-
----
-
-## 🔐 .env файл
-
-Для безопасного хранения паролей создайте `.env`:
-
-```env
-# Database credentials
-MYSQL_ROOT_PASSWORD=supersecretrootpass
-MYSQL_USER=appuser
-MYSQL_PASSWORD=secureapppassword
-
-# Application settings
-FLASK_ENV=production
-```
-
-**Почему `.env` лучше хардкода?**
-- Пароли не попадают в git (добавьте `.env` в `.gitignore`)
-- Легко менять конфигурацию без изменения кода
-- Соответствует best practices (12-factor app)
-
-**Использование в docker-compose.yaml:**
+**Код инициализации dind**
 ```yaml
-environment:
-  MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
-  MYSQL_USER: ${MYSQL_USER}
-  MYSQL_PASSWORD: ${MYSQL_PASSWORD}
-```
+image:
+  name: docker:rc-dind
+  entrypoint: [""]
+  pull_policy: if-not-present
 
----
+services:
+  - name: docker:dind
+    alias: dind
 
-## ⚙️ Ключевые решения и компромиссы
+variables:
+  DOCKER_TLS_CERTDIR: ""
+  DOCKER_HOST: tcp://dind:2375
+  DOCKER_DRIVER: overlay2
+  CI_DEPENDENCY_PROXY_SERVER: registry-cache.atp-fivt.org
 
-| Решение | Альтернатива | Почему выбрано |
-|---|---|---|
-| **User-defined bridge network** | Default bridge | DNS resolution по имени сервиса, лучшая изоляция |
-| **HealthCheck для db** | `sleep 10` в filler | Declarative, надёжный, стандарт Docker |
-| **depends_on: condition** | `restart: on-failure` | Явное указание зависимостей, не требует retry |
-| **PyMySQL вместо mysqlclient** | mysql-connector-python | PyMySQL pure Python, легче компилировать в Docker |
-| **Flask вместо FastAPI** | FastAPI | Проще для учебной задачи, меньше кода |
-| **Slim образы Python** | Alpine | Меньше проблем с компиляцией C-библиотек (mysqlclient) |
-
----
-
-**Важно:**
-- В `docker-compose.yaml` должно быть прописано `build:` для сервисов `filler` и `web`
-- Образы будут собираться автоматически при `docker compose up --build`
-- Система должна работать с **любым** `data.csv` (не хардкодить имена)
-
----
-
-## 💡 Полезные команды
-
-```bash
-# Посмотреть сеть
-docker network inspect app-net
-
-# Подключиться к контейнеру
-docker exec -it web bash
-
-# Пересобрать один сервис
-docker compose up -d --build filler
-
-# Очистить всё (контейнеры, сети, volumes)
-docker compose down -v --remove-orphans
-
-# Посмотреть переменные окружения в контейнере
-docker exec web env | grep MYSQL
+  DOCKER_BUILDKIT: 1
+  BUILDKIT_INLINE_CACHE: 1
+  COMPOSE_DOCKER_CLI_BUILD: 1
 ```
