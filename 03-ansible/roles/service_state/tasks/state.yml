@@ -1,0 +1,31 @@
+---
+- name: Check service state file
+  ansible.builtin.stat:
+    path: "{{ service_json_path }}"
+  register: service_state_stat
+
+- name: Read existing service state
+  ansible.builtin.slurp:
+    src: "{{ service_json_path }}"
+  register: service_state_content
+  when: service_state_stat.stat.exists
+
+- name: Get current service title
+  ansible.builtin.set_fact:
+    current_service_title: "{{ (service_state_content.content | b64decode | from_json).title }}"
+  when:
+    - service_state_stat.stat.exists
+    - (service_state_stat.stat.size | int) > 0
+
+- name: Create or reset service state
+  ansible.builtin.copy:
+    dest: "{{ service_json_path }}"
+    content: "{{ {'title': service_title, 'uptime': 0} | to_nice_json }}\n"
+    owner: root
+    group: root
+    mode: '0644'
+  when: >
+    not service_state_stat.stat.exists
+    or (service_state_stat.stat.size | int) == 0
+    or current_service_title | default('') != service_title
+  notify: Restart nginx
