@@ -1,0 +1,47 @@
+---
+- name: Install packages on Ubuntu
+  ansible.builtin.apt:
+    name:
+      - nginx
+      - cron
+      - jq
+    state: present
+    update_cache: true
+  when: ansible_os_family == "Debian"
+
+- name: Configure CentOS Vault
+  ansible.builtin.import_tasks: vault.yml
+
+- name: Configure EPEL repository on CentOS 7
+  ansible.builtin.yum_repository:
+    name: epel
+    description: EPEL 7 Archive
+    baseurl: https://archives.fedoraproject.org/pub/archive/epel/7/$basearch/
+    enabled: true
+    gpgcheck: true
+    gpgkey: https://dl.fedoraproject.org/pub/epel/RPM-GPG-KEY-EPEL-7
+    file: epel
+  when:
+    - ansible_distribution == "CentOS"
+    - ansible_distribution_major_version == "7"
+
+- name: Install packages on CentOS
+  ansible.builtin.yum:
+    name:
+      - nginx
+      - cronie
+      - jq
+    state: present
+  when: ansible_os_family == "RedHat"
+
+- name: Configure service state
+  ansible.builtin.import_tasks: state.yml
+
+- name: Configure nginx
+  ansible.builtin.import_tasks: nginx.yml
+
+- name: Configure cron
+  ansible.builtin.import_tasks: cron.yml
+
+- name: Configure system services
+  ansible.builtin.import_tasks: services.yml
