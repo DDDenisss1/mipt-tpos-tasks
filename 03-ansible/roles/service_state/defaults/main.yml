@@ -1,0 +1,4 @@
+---
+service_title: "Seems working"
+service_json_path: /opt/service_state.json
+service_port: 80
