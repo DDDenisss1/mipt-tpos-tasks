@@ -1,0 +1,7 @@
+---
+- name: Configure service state
+  hosts: all
+  become: true
+
+  roles:
+    - service_state
